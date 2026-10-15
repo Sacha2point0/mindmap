@@ -4,9 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <title>Carte mentale · Worklab Mindmap</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,600;0,700;0,800;0,900;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/fonts/fonts.css">
   <link rel="stylesheet" href="/css/styles.css">
   <link rel="stylesheet" href="/css/editor.css">
 </head>
@@ -21,6 +19,15 @@
     <span id="sync-status" class="sync hide-sm">Enregistré</span>
     <button id="undo" class="btn ghost icon" title="Annuler (⌘Z)" aria-label="Annuler"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
     <button id="redo" class="btn ghost icon" title="Rétablir (⇧⌘Z)" aria-label="Rétablir"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+    <div class="menu" id="export-menu">
+      <button id="export-btn" class="btn" aria-haspopup="true">Exporter<span class="hide-sm"> ▾</span></button>
+      <div class="menu-list" hidden>
+        <button data-export="png">Image (PNG)</button>
+        <button data-export="pdf">Document PDF</button>
+        <button data-export="html">Page web (HTML)</button>
+        <button data-export="xmind">Fichier XMind</button>
+      </div>
+    </div>
     <button id="share-btn" class="btn primary" hidden>Partager</button>
   </header>
 
@@ -47,6 +54,7 @@
 
   <script src="/js/common.js"></script>
   <script src="/js/ops.js"></script>
+  <script src="/js/export.js"></script>
   <script src="/js/editor.js"></script>
 </body>
 </html>

@@ -74,10 +74,11 @@ Sauvegardez régulièrement la base MySQL (hPanel propose des sauvegardes) **et*
 - **Déplacer une branche** : glissez-la sur un autre nœud (au centre : devient enfant ; en haut ou en bas : se place avant ou après).
 - **Images et documents** : glissez des fichiers depuis l'ordinateur sur un nœud, collez une image (`⌘V`) ou utilisez le panneau de droite.
 - **Coller une liste** : chaque ligne devient une sous-branche du nœud sélectionné.
+- **Exporter** : bouton *Exporter* → image PNG, PDF (liens cliquables), page HTML autonome (carte + plan détaillé, images et documents inclus) ou fichier XMind (branches, mise en forme, liens, images, documents en sous-branches).
 - **Partager** : bouton *Partager* (propriétaire uniquement), qui crée des liens en lecture seule ou en modification, révocables à tout moment.
 
 ## Limites actuelles (V1)
 
 - Pas de réinitialisation de mot de passe par e-mail : un administrateur peut définir un nouveau mot de passe depuis l'administration.
-- Pas encore d'export (PNG, PDF) ni d'historique des versions.
+- Pas encore d'historique des versions ni d'import XMind.
 - Les fichiers envoyés restent sur le serveur tant que la carte existe, même s'ils sont retirés d'un nœud.

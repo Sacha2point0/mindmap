@@ -1053,6 +1053,36 @@
   $('redo').onclick = redo;
   $('share-btn').onclick = openShare;
 
+  // ---------------------------------------------------------------- Export
+  const exportList = document.querySelector('#export-menu .menu-list');
+  $('export-btn').onclick = (e) => { e.stopPropagation(); exportList.hidden = !exportList.hidden; };
+  document.addEventListener('click', () => { exportList.hidden = true; });
+  let exporting = false;
+  exportList.addEventListener('click', async (e) => {
+    const b = e.target.closest('button[data-export]');
+    if (!b || exporting) return;
+    exportList.hidden = true;
+    if (state.editing) finishEdit(true);
+    exporting = true;
+    $('export-btn').disabled = true;
+    toast('Préparation de l\'export…');
+    try {
+      render();
+      const doc = viewDoc();
+      await window.MindExport[b.dataset.export]({
+        doc, pos: state.pos, nodesLayer, svg, fileUrl,
+        title: (doc.nodes[doc.rootId].text || 'Carte').replace(/\s+/g, ' ').trim()
+      });
+      toast('Export terminé');
+    } catch (err) {
+      console.error(err);
+      toast('L\'export a échoué : ' + err.message, true);
+    } finally {
+      exporting = false;
+      $('export-btn').disabled = false;
+    }
+  });
+
   document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
   window.addEventListener('beforeunload', (e) => {
     if (state.editing) finishEdit(true);
