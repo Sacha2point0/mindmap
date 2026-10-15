@@ -72,6 +72,7 @@ Sauvegardez régulièrement la base MySQL (hPanel propose des sauvegardes) **et*
 | Déplacer la vue | glisser le fond, ou molette ou trackpad |
 
 - **Déplacer une branche** : glissez-la sur un autre nœud (au centre : devient enfant ; en haut ou en bas : se place avant ou après).
+- **Notes** : saisissez une note dans le panneau de droite (section *Note*). Une icône 📝 apparaît sur la branche, et un clic dessus affiche la note (les adresses web y sont cliquables). Les notes sont incluses dans les exports HTML et XMind.
 - **Images et documents** : glissez des fichiers depuis l'ordinateur sur un nœud, collez une image (`⌘V`) ou utilisez le panneau de droite.
 - **Coller une liste** : chaque ligne devient une sous-branche du nœud sélectionné.
 - **Dossiers** : sur la page d'accueil, *+ Nouveau dossier* (sous-dossiers possibles). Rangez une carte en la glissant sur un dossier ou sur un nom du fil d'Ariane, ou avec *Déplacer*. Supprimer un dossier remonte son contenu d'un niveau (rien n'est effacé). La recherche trouve les cartes dans tous les dossiers.
@@ -83,5 +84,4 @@ Sauvegardez régulièrement la base MySQL (hPanel propose des sauvegardes) **et*
 
 - Pas de réinitialisation de mot de passe par e-mail : un administrateur peut définir un nouveau mot de passe depuis l'administration.
 - Pas encore d'historique des versions.
-- Les notes importées depuis XMind sont conservées mais pas encore affichées dans l'éditeur.
 - Les fichiers envoyés restent sur le serveur tant que la carte existe, même s'ils sont retirés d'un nœud.

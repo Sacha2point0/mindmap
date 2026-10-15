@@ -158,6 +158,7 @@
       const s = n.style || {};
       const css = [s.color && 'color:' + s.color, s.bold && 'font-weight:800', s.italic && 'font-style:italic', s.underline && 'text-decoration:underline'].filter(Boolean).join(';');
       let h = `<li><div class="t"${css ? ` style="${escapeHtml(css)}"` : ''}>${escapeHtml(n.text || '(sans titre)').replace(/\n/g, '<br>')}</div>`;
+      if (n.note) h += `<div class="n">📝 ${escapeHtml(n.note)}</div>`;
       if (n.image && embedded[n.image.id]) h += `<img src="${embedded[n.image.id]}" alt="" style="width:${Math.min(n.image.w || 200, 600)}px">`;
       const meta = [];
       if (n.link) meta.push(`<a href="${escapeHtml(n.link)}" target="_blank" rel="noopener">🔗 ${escapeHtml(n.link)}</a>`);
@@ -186,6 +187,7 @@ ul{list-style:none;padding-left:22px;border-left:2px solid #DADFF2;margin:6px 0}
 li{margin:8px 0}.t{font-weight:600;white-space:pre-wrap}li img{display:block;max-width:100%;border-radius:8px;margin:6px 0}
 .m{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}.m a,.m span{font-size:13px;background:#E8EBF8;color:#1226AA;border-radius:999px;padding:2px 10px;text-decoration:none;word-break:break-all}
 .m a:hover{background:#3BD4AE}
+.n{white-space:pre-wrap;font-size:14px;background:#FFFBEA;border:1px solid #F2E38A;border-radius:10px;padding:6px 10px;margin:4px 0;max-width:640px}
 </style></head><body><main>
 <h1>${escapeHtml(ctx.title)}</h1><p class="date">Exporté le ${escapeHtml(date)}</p>
 <div class="map" onclick="this.classList.toggle('full')"><img src="${mapImage}" alt="Carte mentale"></div>
@@ -305,6 +307,7 @@ li{margin:8px 0}.t{font-weight:600;white-space:pre-wrap}li img{display:block;max
       if (Object.keys(props).length) t.style = { id: uid(), properties: props };
       if (n.link) t.href = n.link;
       if (n.collapsed) t.branch = 'folded';
+      if (n.note) t.notes = { plain: { content: n.note } };
       if (n.image) {
         try {
           const { path, blob } = await addFile('resources', n.image.id, '', '');
@@ -333,6 +336,7 @@ li{margin:8px 0}.t{font-weight:600;white-space:pre-wrap}li img{display:block;max
 
     // Version XML simplifiée pour les anciennes versions de XMind (8 et antérieures).
     const xmlTopic = (t) => `<topic id="${escapeHtml(t.id)}"${t.href ? ` xlink:href="${escapeHtml(t.href)}"` : ''}${t.branch ? ' branch="folded"' : ''}><title>${escapeHtml(t.title)}</title>` +
+      (t.notes ? `<notes><plain>${escapeHtml(t.notes.plain.content)}</plain></notes>` : '') +
       (t.children ? `<children><topics type="attached">${t.children.attached.map(xmlTopic).join('')}</topics></children>` : '') + '</topic>';
     const xml = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>' +
       '<xmap-content xmlns="urn:xmind:xmap:xmlns:content:2.0" xmlns:fo="http://www.w3.org/1999/XSL/Format" xmlns:svg="http://www.w3.org/2000/svg" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:xlink="http://www.w3.org/1999/xlink" version="2.0">' +

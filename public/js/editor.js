@@ -254,7 +254,7 @@
   function updateNodeEl(e, n, inf) {
     const s = n.style || {};
     const editing = state.editing === n.id;
-    const sig = JSON.stringify([n.text, s, n.link, n.image, n.attachments, inf.depth, inf.branch, inf.side, inf.collapsed, inf.childCount, editing]);
+    const sig = JSON.stringify([n.text, s, n.link, n.image, n.attachments, !!n.note, inf.depth, inf.branch, inf.side, inf.collapsed, inf.childCount, editing]);
     if (e._sig === sig) return;
     e._sig = sig;
 
@@ -289,6 +289,8 @@
       try { label = new URL(link).hostname.replace(/^www\./, '') || link; } catch (err) { /* lien mailto */ }
       meta.push(el('a', { class: 'chip', href: link, target: '_blank', rel: 'noopener noreferrer', title: link }, ['🔗 ', label]));
     }
+    if (n.note) meta.push(el('button', { class: 'chip note-chip', type: 'button', title: 'Afficher la note',
+      onclick: (ev) => { ev.stopPropagation(); toggleNote(n.id, ev.currentTarget); } }, ['📝 Note']));
     (n.attachments || []).forEach((a) => meta.push(el('a', { class: 'chip', href: fileUrl(a.id, true), title: a.name + ' · ' + formatSize(a.size) }, ['📎 ', a.name])));
     e._meta.replaceChildren(...meta);
 
@@ -331,6 +333,7 @@
     drawLinks(doc, info);
     updateSelectionClasses();
     renderPanel();
+    refreshNote(doc);
     updateChrome(doc);
 
     if (state.pendingEdit && els.get(state.pendingEdit)) {
@@ -642,6 +645,65 @@
     }
   }
 
+  // ================================================================ Notes
+
+  let notePop = null;
+
+  /** Texte de note avec les adresses web rendues cliquables. */
+  function noteContent(text) {
+    const frag = document.createDocumentFragment();
+    String(text).split(/(https?:\/\/[^\s<>"']+)/g).forEach((part, i) => {
+      if (i % 2) frag.append(el('a', { href: part, target: '_blank', rel: 'noopener noreferrer', text: part }));
+      else if (part) frag.append(part);
+    });
+    return frag;
+  }
+
+  function closeNote() {
+    if (notePop) { notePop.remove(); notePop = null; }
+  }
+
+  function toggleNote(id, anchor) {
+    if (notePop && notePop.dataset.id === id) return closeNote();
+    closeNote();
+    const n = viewDoc().nodes[id];
+    if (!n || !n.note) return;
+    notePop = el('div', { class: 'note-pop', 'data-id': id, role: 'dialog', 'aria-label': 'Note' }, [
+      el('div', { class: 'note-head' }, [
+        el('b', { text: '📝 Note' }),
+        el('span', { class: 'spacer' }),
+        canEdit() ? el('button', { class: 'btn sm ghost', text: 'Modifier', onclick: () => { closeNote(); select(id); focusNoteField(); } }) : null,
+        el('button', { class: 'btn ghost icon', 'aria-label': 'Fermer la note', text: '✕', onclick: closeNote })
+      ]),
+      el('div', { class: 'note-body' }, noteContent(n.note))
+    ]);
+    document.body.append(notePop);
+    const r = anchor.getBoundingClientRect();
+    const w = notePop.offsetWidth, h = notePop.offsetHeight;
+    let top = r.bottom + 8;
+    if (top + h > window.innerHeight - 12) top = Math.max(70, r.top - h - 8);
+    notePop.style.left = Math.max(12, Math.min(r.left, window.innerWidth - w - 12)) + 'px';
+    notePop.style.top = top + 'px';
+  }
+
+  /** Après une modification (locale ou distante), la bulle suit le contenu de la note. */
+  function refreshNote(doc) {
+    if (!notePop) return;
+    const n = doc.nodes[notePop.dataset.id];
+    if (!n || !n.note || !state.info[n.id]) return closeNote();
+    const body = notePop.querySelector('.note-body');
+    if (body.textContent !== n.note) body.replaceChildren(noteContent(n.note));
+  }
+
+  function focusNoteField() {
+    const f = panel.querySelector('.note-field');
+    if (f) { f.scrollIntoView({ block: 'center' }); f.focus(); }
+  }
+
+  document.addEventListener('pointerdown', (e) => {
+    if (notePop && !e.target.closest('.note-pop, .note-chip')) closeNote();
+  });
+
   // ================================================================ Panneau de mise en forme
 
   function renderPanel() {
@@ -652,6 +714,10 @@
     const inf = state.info[id] || {};
     const sig = id + JSON.stringify(n) + inf.branch;
     if (panel._sig === sig && !panel.hidden) return;
+    // Saisie en cours dans le panneau : on attend qu'elle se termine pour ne rien effacer.
+    if (panel._id === id && !panel.hidden && panel.contains(document.activeElement) && document.activeElement.matches('input, textarea')) { panel._stale = true; return; }
+    panel._id = id;
+    panel._stale = false;
     panel._sig = sig;
     panel.hidden = false;
 
@@ -681,6 +747,14 @@
       commit([{ type: 'update', id, patch: { link: v || null } }]);
       if (v) toast('Lien ajouté');
     };
+
+    const noteField = el('textarea', { class: 'note-field', rows: 4, placeholder: 'Ajoutez une note : elle s\'affichera en cliquant sur l\'icône 📝 de la branche.', 'aria-label': 'Note' });
+    noteField.value = n.note || '';
+    noteField.addEventListener('change', () => {
+      const v = noteField.value.replace(/\s+$/, '');
+      if (v !== (n.note || '')) commit([{ type: 'update', id, patch: { note: v || null } }]);
+    });
+    noteField.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) noteField.blur(); });
 
     const imgSection = n.image
       ? [el('div', { class: 'row' }, [
@@ -732,6 +806,8 @@
         el('button', { class: 'btn sm danger', text: 'Retirer', onclick: () => commit([{ type: 'update', id, patch: { link: null } }]) })
       ]) : null,
 
+      el('h3', { text: 'Note' }), noteField,
+
       el('h3', { text: 'Image' }), ...imgSection,
 
       el('h3', { text: 'Documents' }),
@@ -748,6 +824,7 @@
   }
 
   // Après un clic dans le panneau, on rend la main aux raccourcis clavier de la carte.
+  panel.addEventListener('focusout', () => setTimeout(() => { if (panel._stale) { panel._sig = null; renderPanel(); } }, 0));
   panel.addEventListener('click', (e) => {
     const b = e.target.closest('button');
     if (b) b.blur();
@@ -974,12 +1051,14 @@
 
   stage.addEventListener('wheel', (e) => {
     e.preventDefault();
+    closeNote();
     const r = stage.getBoundingClientRect();
     if (e.ctrlKey || e.metaKey) setZoom(state.zoom * Math.exp(-e.deltaY * 0.01), e.clientX - r.left, e.clientY - r.top);
     else { state.panX -= e.deltaX; state.panY -= e.deltaY; applyTransform(); }
   }, { passive: false });
 
   document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && notePop) { closeNote(); return; }
     if (state.editing || !state.confirmed) return;
     if (e.target.closest && e.target.closest('input, textarea, select, .modal-back, #panel')) return;
     const mod = e.metaKey || e.ctrlKey;

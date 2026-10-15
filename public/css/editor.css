@@ -139,3 +139,18 @@ body.editor { overflow: hidden; }
   .panel { top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 48vh; border-radius: 18px 18px 0 0; }
   .zoom-ctrl { bottom: auto; top: 72px; }
 }
+
+/* ---------- Notes ---------- */
+button.chip { border: 0; font-family: var(--font); cursor: pointer; }
+.note-chip { background: #FFF4C2; color: #6B5A00; }
+.note-chip:hover { background: var(--yellow); color: #3D3300; }
+.node.root .note-chip { background: rgba(255, 255, 255, .25); color: #fff; }
+.note-pop {
+  position: fixed; z-index: 70; width: min(360px, calc(100vw - 24px)); max-height: 50vh; overflow: auto;
+  background: #FFFBEA; border: 1.5px solid #F2E38A; border-radius: 14px; box-shadow: var(--shadow); padding: 10px 14px 14px;
+}
+.note-head { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; }
+.note-head .btn.icon { width: 28px; height: 28px; padding: 4px; }
+.note-body { white-space: pre-wrap; word-break: break-word; font-size: 14px; line-height: 1.5; color: var(--ink); }
+.note-body a { word-break: break-all; }
+.panel textarea.note-field { margin: 0; min-height: 90px; resize: vertical; font-size: 14px; line-height: 1.45; }
