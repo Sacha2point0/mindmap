@@ -7,8 +7,17 @@ const { db, DATA_DIR } = require('./db');
 const { requireUser } = require('./auth');
 const MindOps = require('../public/js/ops.js');
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(DATA_DIR, 'uploads');
-fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+const { report } = require('./diagnostics');
+
+let UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(DATA_DIR, 'uploads');
+try {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  fs.accessSync(UPLOAD_DIR, fs.constants.W_OK);
+} catch (e) {
+  report('UPLOAD_DIR', `Le dossier « ${UPLOAD_DIR} » n'est pas accessible en écriture : les fichiers seront stockés dans le dossier de l'application.`, e.code);
+  UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
 const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB || 20);
 const KEEP_OPS = 1000; // nombre d'opérations conservées par carte pour la synchro
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];

@@ -12,7 +12,10 @@ const isProd = process.env.NODE_ENV === 'production';
 
 function loadSecret() {
   if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
-  if (isProd) throw new Error('JWT_SECRET doit être défini en production (voir .env.example)');
+  if (isProd) {
+    require('./diagnostics').report('JWT_SECRET', 'La variable JWT_SECRET est vide : ajoutez une longue chaîne aléatoire dans les variables d\'environnement.');
+    return crypto.randomBytes(32).toString('hex');
+  }
   const file = path.join(DATA_DIR, '.dev-secret');
   if (!fs.existsSync(file)) fs.writeFileSync(file, crypto.randomBytes(32).toString('hex'));
   return fs.readFileSync(file, 'utf8');

@@ -2,7 +2,8 @@ require('dotenv').config({ quiet: true });
 const path = require('path');
 const express = require('express');
 const cookieParser = require('cookie-parser');
-const { migrate } = require('./db');
+const { migrate, isMysql } = require('./db');
+const { problems, report } = require('./diagnostics');
 const auth = require('./auth');
 const maps = require('./maps');
 const admin = require('./admin');
@@ -18,6 +19,25 @@ app.use((req, res, next) => {
   res.set('X-Frame-Options', 'SAMEORIGIN');
   next();
 });
+// État de la base : tant qu'elle n'est pas prête, on affiche une page de diagnostic au lieu de planter.
+let dbReady = false;
+let dbProblem = null;
+
+app.get('/health', (req, res) => {
+  res.status(dbReady ? 200 : 503).json({ ok: dbReady, database: dbReady ? 'ok' : dbProblem, problems });
+});
+
+app.use((req, res, next) => {
+  if (dbReady) return next();
+  if (req.path.startsWith('/api')) return res.status(503).json({ error: 'Service en cours de démarrage ou mal configuré' });
+  const list = (dbProblem ? [dbProblem] : []).concat(problems);
+  res.status(503).type('html').send(`<!doctype html><meta charset="utf-8"><title>Configuration</title>
+<body style="font-family:system-ui,sans-serif;max-width:640px;margin:60px auto;padding:0 16px;color:#1226AA">
+<h1>Le serveur démarre mais n'est pas prêt</h1>
+${list.length ? '<ul>' + list.map((p) => `<li><b>${p.code}</b> : ${escapeHtml(p.message)}</li>`).join('') + '</ul>' : '<p>Connexion à la base de données en cours… rechargez dans quelques secondes.</p>'}
+<p>Corrigez les variables d'environnement dans l'hébergeur puis redémarrez l'application.</p></body>`);
+});
+
 app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
 app.use(auth.loadUser);
@@ -49,10 +69,42 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Erreur serveur' });
 });
 
-const PORT = Number(process.env.PORT || 3000);
-migrate()
-  .then(() => app.listen(PORT, () => console.log(`Mindmap prêt sur http://localhost:${PORT}`)))
-  .catch((e) => {
-    console.error('Impossible d\'initialiser la base de données :', e.message);
-    process.exit(1);
-  });
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function explainDbError(e) {
+  const known = {
+    ER_ACCESS_DENIED_ERROR: 'Identifiant ou mot de passe MySQL refusé : vérifiez DB_USER et DB_PASSWORD.',
+    ER_DBACCESS_DENIED_ERROR: 'Cet utilisateur MySQL n\'a pas accès à la base : vérifiez DB_NAME et DB_USER.',
+    ER_BAD_DB_ERROR: 'Base de données introuvable : vérifiez DB_NAME.',
+    ECONNREFUSED: 'Serveur MySQL injoignable : vérifiez DB_HOST et DB_PORT.',
+    ENOTFOUND: 'Adresse du serveur MySQL inconnue : vérifiez DB_HOST.',
+    ETIMEDOUT: 'Le serveur MySQL ne répond pas : vérifiez DB_HOST et DB_PORT.'
+  };
+  return { code: e.code || 'BASE_DE_DONNEES', message: known[e.code] || 'Impossible d\'initialiser la base de données.' };
+}
+
+async function connectDatabase() {
+  try {
+    await migrate();
+    dbReady = true;
+    dbProblem = null;
+    console.log('Base de données prête');
+  } catch (e) {
+    dbProblem = explainDbError(e);
+    console.error('Base de données indisponible :', e.code || '', e.message);
+    setTimeout(connectDatabase, 30000); // nouvel essai automatique
+  }
+}
+
+if (isMysql) {
+  ['DB_NAME', 'DB_USER', 'DB_PASSWORD'].forEach((k) => { if (!process.env[k]) report(k, `La variable ${k} est vide.`); });
+} else if (process.env.NODE_ENV === 'production') {
+  report('DB_CLIENT', 'DB_CLIENT n\'est pas « mysql » : les données sont stockées dans un fichier SQLite local.');
+}
+
+// PORT est transmis tel quel : certains hébergeurs fournissent un nom de socket et non un numéro.
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Mindmap démarré (port ${PORT})`));
+connectDatabase();
