@@ -269,14 +269,15 @@
     // Image
     if (n.image) {
       if (!e._img) {
-        e._img = el('img', { class: 'node-img', alt: '', draggable: 'false' });
-        e._img.addEventListener('load', scheduleRender);
+        e._imgEl = el('img', { class: 'node-img', alt: '', draggable: 'false', title: canEdit() ? 'Glisser vers une autre branche pour déplacer l\'image' : null });
+        e._imgEl.addEventListener('load', scheduleRender);
+        e._img = el('div', { class: 'node-img-wrap' }, [e._imgEl, canEdit() ? el('span', { class: 'img-handle', title: 'Redimensionner' }) : null]);
         e.insertBefore(e._img, e._text);
       }
       const src = fileUrl(n.image.id);
-      if (e._img.getAttribute('src') !== src) e._img.src = src;
-      e._img.style.width = (n.image.w || 200) + 'px';
-    } else if (e._img) { e._img.remove(); e._img = null; }
+      if (e._imgEl.getAttribute('src') !== src) e._imgEl.src = src;
+      setImageWidth(e, n.image.w || 200);
+    } else if (e._img) { e._img.remove(); e._img = e._imgEl = null; e.style.maxWidth = ''; }
 
     if (!editing) e._text.textContent = n.text || '';
 
@@ -294,6 +295,14 @@
     e._col.hidden = inf.depth === 0 || inf.childCount === 0;
     e._col.classList.toggle('closed', inf.collapsed);
     e._col.textContent = inf.collapsed ? '+' + inf.childCount : '−';
+  }
+
+  const IMG_MIN = 60, IMG_MAX = 900;
+
+  /** Largeur d'image affichée ; le nœud s'élargit pour la contenir. */
+  function setImageWidth(e, w) {
+    e._imgEl.style.width = w + 'px';
+    e.style.maxWidth = Math.max(340, w + 40) + 'px';
   }
 
   function render() {
@@ -678,6 +687,7 @@
           el('div', { class: 'seg' }, [[120, 'Petite'], [200, 'Moyenne'], [320, 'Grande']].map(([w, label]) =>
             el('button', { class: (n.image.w || 200) === w ? 'on' : '', text: label, onclick: () => commit([{ type: 'update', id, patch: { image: Object.assign({}, n.image, { w }) } }]) }))),
         ]),
+        el('p', { class: 'muted small', style: 'margin:6px 0', text: 'Tirez le coin de l\'image pour la redimensionner, ou glissez l\'image sur une autre branche pour la déplacer.' }),
         el('div', { class: 'row', style: 'margin-top:6px' }, [
           el('button', { class: 'btn sm', text: 'Remplacer', onclick: () => chooseFile('image/*', (f) => uploadTo(id, f, true)) }),
           el('button', { class: 'btn sm danger', text: 'Retirer', onclick: () => commit([{ type: 'update', id, patch: { image: null } }]) })
@@ -793,7 +803,10 @@
       if (state.editing === id) return;
       if (state.editing) finishEdit(true);
       select(id);
-      if (canEdit() && id !== viewDoc().rootId) beginDrag(e, id);
+      if (!canEdit()) return;
+      if (e.target.closest('.img-handle')) return beginImageResize(e, id);
+      if (e.target.closest('.node-img')) return beginImageDrag(e, id);
+      if (id !== viewDoc().rootId) beginDrag(e, id);
       return;
     }
     if (state.editing) finishEdit(true);
@@ -815,6 +828,79 @@
     stage.addEventListener('pointermove', move);
     stage.addEventListener('pointerup', up);
     stage.addEventListener('pointercancel', up);
+  }
+
+  /** Suit le pointeur jusqu'au relâchement (move reçoit l'évènement, up reçoit l'évènement final). */
+  function track(move, up) {
+    const end = (ev) => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', end);
+      up(ev);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+  }
+
+  function beginImageResize(e, id) {
+    e.preventDefault();
+    const nodeEl = els.get(id);
+    const image = viewDoc().nodes[id].image;
+    const startW = nodeEl._imgEl.offsetWidth, sx = e.clientX;
+    // Sur une branche à gauche, la poignée est à gauche : tirer vers la gauche agrandit.
+    const dir = state.info[id] && state.info[id].side === 'left' ? -1 : 1;
+    let w = startW;
+    nodeEl.classList.add('resizing');
+    track((ev) => {
+      w = Math.round(Math.min(IMG_MAX, Math.max(IMG_MIN, startW + dir * (ev.clientX - sx) / state.zoom)));
+      setImageWidth(nodeEl, w);
+      layout(viewDoc(), state.info);
+      drawLinks(viewDoc(), state.info);
+    }, (ev) => {
+      nodeEl.classList.remove('resizing');
+      if (ev.type === 'pointerup' && w !== (image.w || 200)) commit([{ type: 'update', id, patch: { image: Object.assign({}, image, { w }) } }]);
+      else { nodeEl._sig = null; changed(); }
+    });
+  }
+
+  function beginImageDrag(e, id) {
+    e.preventDefault();
+    const sx = e.clientX, sy = e.clientY;
+    const src = els.get(id)._imgEl;
+    let ghost = null, target = null;
+    const clearDrop = () => document.querySelectorAll('.drop-child').forEach((n) => n.classList.remove('drop-child'));
+    track((ev) => {
+      if (!ghost) {
+        if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 6) return;
+        ghost = el('img', { class: 'drag-ghost img-ghost', src: src.src, alt: '' });
+        ghost.style.width = Math.min(160, src.offsetWidth * state.zoom) + 'px';
+        document.body.append(ghost);
+        src.classList.add('dragging');
+      }
+      ghost.style.left = ev.clientX + 10 + 'px';
+      ghost.style.top = ev.clientY + 10 + 'px';
+      clearDrop();
+      const under = document.elementFromPoint(ev.clientX, ev.clientY);
+      const tEl = under && under.closest('#nodes .node');
+      target = tEl && tEl.dataset.id !== id ? tEl.dataset.id : null;
+      if (target) tEl.classList.add('drop-child');
+    }, (ev) => {
+      if (!ghost) return;
+      ghost.remove();
+      src.classList.remove('dragging');
+      clearDrop();
+      if (ev.type !== 'pointerup' || !target) return;
+      const doc = viewDoc();
+      const moved = doc.nodes[id].image, existing = doc.nodes[target].image;
+      // Si la branche cible a déjà une image, les deux images sont échangées.
+      commit([
+        { type: 'update', id: target, patch: { image: moved } },
+        { type: 'update', id, patch: { image: existing || null } }
+      ]);
+      select(target);
+      toast(existing ? 'Images échangées' : 'Image déplacée');
+    });
   }
 
   function beginDrag(e, id) {
