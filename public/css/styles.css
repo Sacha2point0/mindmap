@@ -112,3 +112,21 @@ table.data th { font-weight: 800; color: var(--muted); font-size: 12px; text-tra
   .container { padding: 20px 16px 40px; }
   .hide-sm { display: none !important; }
 }
+
+/* ---------- Tableau de bord : dossiers ---------- */
+.dash-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.dash-head .search { max-width: 280px; margin: 0; border-radius: 999px; padding: 8px 16px; }
+.toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+.crumbs { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; font-weight: 800; }
+.crumb { text-decoration: none; padding: 5px 10px; border-radius: 8px; color: var(--blue); }
+.crumb:hover { background: var(--blue-soft); }
+.crumbs .sep { color: var(--muted); }
+.crumbs .crumb:last-child { color: var(--muted); }
+.map-card.folder { background: var(--blue-soft); box-shadow: none; border: 1.5px solid transparent; }
+.map-card.folder a.title { display: flex; align-items: center; gap: 10px; }
+.folder-icon { width: 26px; height: 20px; border-radius: 4px 6px 6px 6px; background: var(--coral); position: relative; flex: none; }
+.folder-icon::before { content: ''; position: absolute; left: 0; top: -5px; width: 12px; height: 7px; border-radius: 3px 3px 0 0; background: var(--coral); }
+.map-card[draggable="true"] { cursor: grab; }
+.map-card.dragging { opacity: .4; }
+.drop-target { outline: 3px solid var(--teal); outline-offset: 2px; background: rgba(59, 212, 174, .15) !important; }
+@media (max-width: 600px) { .dash-head .search { max-width: none; width: 100%; } }

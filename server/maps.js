@@ -5,6 +5,7 @@ const express = require('express');
 const multer = require('multer');
 const { db, DATA_DIR } = require('./db');
 const { requireUser } = require('./auth');
+const { ownedFolder } = require('./folders');
 const MindOps = require('../public/js/ops.js');
 
 const { report } = require('./diagnostics');
@@ -101,15 +102,26 @@ async function deleteMapCompletely(mapId) {
 
 router.get('/maps', requireUser, async (req, res) => {
   const maps = await db('maps').where({ owner_id: req.user.id })
-    .select('id', 'title', 'created_at', 'updated_at').orderBy('updated_at', 'desc');
+    .select('id', 'title', 'folder_id', 'created_at', 'updated_at').orderBy('updated_at', 'desc');
   res.json({ maps });
 });
 
 router.post('/maps', requireUser, async (req, res) => {
   const id = crypto.randomUUID();
   const title = String(req.body.title || 'Nouvelle carte').trim().slice(0, 200) || 'Nouvelle carte';
-  await db('maps').insert({ id, owner_id: req.user.id, title, doc: JSON.stringify(MindOps.newDoc(title)), version: 0 });
+  const folder = await ownedFolder(req.user.id, req.body.folderId);
+  if (!folder.ok) return res.status(400).json({ error: 'Dossier introuvable' });
+  await db('maps').insert({ id, owner_id: req.user.id, folder_id: folder.id, title, doc: JSON.stringify(MindOps.newDoc(title)), version: 0 });
   res.json({ id });
+});
+
+router.patch('/maps/:id', guard('owner'), async (req, res) => {
+  if (!('folderId' in req.body)) return res.json({ ok: true });
+  // Le dossier doit appartenir au propriétaire de la carte (même si un admin la déplace).
+  const folder = await ownedFolder(req.map.owner_id, req.body.folderId);
+  if (!folder.ok) return res.status(400).json({ error: 'Dossier introuvable' });
+  await db('maps').where({ id: req.map.id }).update({ folder_id: folder.id });
+  res.json({ ok: true });
 });
 
 router.get('/maps/:id', guard('view'), async (req, res) => {
@@ -137,7 +149,7 @@ router.post('/maps/:id/duplicate', requireUser, guard('owner'), async (req, res)
     if (n.image && remap[n.image.id]) n.image.id = remap[n.image.id];
     (n.attachments || []).forEach((a) => { if (remap[a.id]) a.id = remap[a.id]; });
   });
-  await db('maps').insert({ id, owner_id: req.user.id, title, doc: JSON.stringify(doc), version: 0 });
+  await db('maps').insert({ id, owner_id: req.user.id, folder_id: req.map.owner_id === req.user.id ? req.map.folder_id : null, title, doc: JSON.stringify(doc), version: 0 });
   res.json({ id });
 });
 

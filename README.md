@@ -74,11 +74,14 @@ Sauvegardez régulièrement la base MySQL (hPanel propose des sauvegardes) **et*
 - **Déplacer une branche** : glissez-la sur un autre nœud (au centre : devient enfant ; en haut ou en bas : se place avant ou après).
 - **Images et documents** : glissez des fichiers depuis l'ordinateur sur un nœud, collez une image (`⌘V`) ou utilisez le panneau de droite.
 - **Coller une liste** : chaque ligne devient une sous-branche du nœud sélectionné.
+- **Dossiers** : sur la page d'accueil, *+ Nouveau dossier* (sous-dossiers possibles). Rangez une carte en la glissant sur un dossier ou sur un nom du fil d'Ariane, ou avec *Déplacer*. Supprimer un dossier remonte son contenu d'un niveau (rien n'est effacé). La recherche trouve les cartes dans tous les dossiers.
+- **Importer XMind** : bouton sur la page d'accueil, la carte est créée dans le dossier ouvert. Les fichiers XMind récents (branches, styles, liens, images, pièces jointes, notes) et XMind 8 (branches, liens, pièces jointes) sont pris en charge. Une carte est créée par feuille.
 - **Exporter** : bouton *Exporter* → image PNG, PDF (liens cliquables), page HTML autonome (carte + plan détaillé, images et documents inclus) ou fichier XMind (branches, mise en forme, liens, images, documents en sous-branches).
 - **Partager** : bouton *Partager* (propriétaire uniquement), qui crée des liens en lecture seule ou en modification, révocables à tout moment.
 
 ## Limites actuelles (V1)
 
 - Pas de réinitialisation de mot de passe par e-mail : un administrateur peut définir un nouveau mot de passe depuis l'administration.
-- Pas encore d'historique des versions ni d'import XMind.
+- Pas encore d'historique des versions.
+- Les notes importées depuis XMind sont conservées mais pas encore affichées dans l'éditeur.
 - Les fichiers envoyés restent sur le serveur tant que la carte existe, même s'ils sont retirés d'un nœud.

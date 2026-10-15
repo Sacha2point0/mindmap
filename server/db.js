@@ -55,6 +55,19 @@ async function migrate() {
     });
   }
 
+  if (!(await has('folders'))) {
+    await db.schema.createTable('folders', (t) => {
+      t.increments('id');
+      t.integer('owner_id').notNullable().index();
+      t.string('name', 120).notNullable();
+      t.integer('parent_id').nullable().index();
+      t.timestamp('created_at').defaultTo(db.fn.now());
+    });
+  }
+  if (!(await db.schema.hasColumn('maps', 'folder_id'))) {
+    await db.schema.alterTable('maps', (t) => { t.integer('folder_id').nullable().index(); });
+  }
+
   if (!(await has('map_ops'))) {
     await db.schema.createTable('map_ops', (t) => {
       t.increments('id');

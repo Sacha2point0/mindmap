@@ -55,6 +55,7 @@ router.delete('/users/:id', async (req, res) => {
   if (user.id === req.user.id) return res.status(400).json({ error: 'Vous ne pouvez pas supprimer votre propre compte' });
   const maps = await db('maps').where({ owner_id: user.id }).select('id');
   for (const m of maps) await deleteMapCompletely(m.id);
+  await db('folders').where({ owner_id: user.id }).del();
   await db('users').where({ id: user.id }).del();
   res.json({ ok: true });
 });

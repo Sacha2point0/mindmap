@@ -7,6 +7,7 @@ const { problems, report } = require('./diagnostics');
 const auth = require('./auth');
 const maps = require('./maps');
 const admin = require('./admin');
+const folders = require('./folders');
 
 const app = express();
 const PUBLIC = path.join(__dirname, '..', 'public');
@@ -55,6 +56,7 @@ app.use('/api', (req, res, next) => {
 app.use('/api/auth', auth.router);
 app.use('/api/admin', admin.router);
 app.use('/api', maps.router);
+app.use('/api', folders.router);
 app.use('/api', (req, res) => res.status(404).json({ error: 'Route inconnue' }));
 
 app.use(express.static(PUBLIC, { index: false, maxAge: process.env.NODE_ENV === 'production' ? '1h' : 0 }));
