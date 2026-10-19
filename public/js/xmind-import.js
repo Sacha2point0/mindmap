@@ -17,6 +17,19 @@
     'org.xmind.topicShape.underline': 'line'
   };
 
+  /** Exécute une étape de l'import ; en cas d'échec, le message dit laquelle et pourquoi. */
+  async function step(label, fn) {
+    try { return await fn(); } catch (e) {
+      console.error('[import XMind] ' + label, e);
+      const why = e instanceof TypeError && /fetch|load failed|network/i.test(e.message)
+        ? 'le serveur n\'a pas répondu (connexion interrompue ou requête bloquée)'
+        : e.message;
+      const err = new Error(label + ' : ' + why);
+      err.cause = e;
+      throw err;
+    }
+  }
+
   // ------------------------------------------------------------ Lecture de l'archive ZIP
 
   async function readZip(file) {
@@ -75,8 +88,12 @@
         if (e.method === 0) return data;
         if (e.method !== 8) throw new Error('format de compression non pris en charge');
         if (typeof DecompressionStream === 'undefined') throw new Error('navigateur trop ancien pour lire ce fichier');
-        const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
-        return new Uint8Array(await new Response(stream).arrayBuffer());
+        try {
+          const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+          return new Uint8Array(await new Response(stream).arrayBuffer());
+        } catch (err) {
+          throw new Error('impossible de décompresser « ' + name + ' »');
+        }
       }
     };
   }
@@ -200,7 +217,7 @@
   const isAttachmentTopic = (t) => t.href && /^xap:/.test(t.href) && !t.children.length && !t.image;
 
   async function createMap(sheet, title, zip, folderId, onProgress) {
-    const { id: mapId } = await api('POST', '/api/maps', { title, folderId });
+    const { id: mapId } = await step('Création de la carte', () => api('POST', '/api/maps', { title, folderId }));
     const uploaded = new Map();
     let count = 0;
 
@@ -266,14 +283,14 @@
     await visit(sheet.root, 'root', null, 0, 0);
 
     for (let i = 0; i < ops.length; i += 400)
-      await api('POST', `/api/maps/${mapId}/ops`, { clientId: 'import-' + M.uid(), ops: ops.slice(i, i + 400) });
+      await step('Envoi des branches', () => api('POST', `/api/maps/${mapId}/ops`, { clientId: 'import-' + M.uid(), ops: ops.slice(i, i + 400) }));
     return mapId;
   }
 
   /** Importe un fichier .xmind ; renvoie la liste des identifiants de cartes créées. */
   async function importFile(file, opts) {
     const { folderId = null, onProgress } = opts || {};
-    const { sheets, zip } = await parseXmind(file);
+    const { sheets, zip } = await step('Lecture du fichier', () => parseXmind(file));
     const base = file.name.replace(/\.xmind$/i, '');
     const ids = [];
     for (let i = 0; i < sheets.length; i++) {

@@ -1,4 +1,6 @@
 require('dotenv').config({ quiet: true });
+const fs = require('fs');
+const crypto = require('crypto');
 const path = require('path');
 const express = require('express');
 const cookieParser = require('cookie-parser');
@@ -24,8 +26,19 @@ app.use((req, res, next) => {
 let dbReady = false;
 let dbProblem = null;
 
+// Empreinte du code du navigateur : elle change dès qu'un script ou une feuille de style change.
+const isProd = process.env.NODE_ENV === 'production';
+function computeBuild() {
+  const h = crypto.createHash('sha1');
+  ['js', 'css'].forEach((dir) => {
+    fs.readdirSync(path.join(PUBLIC, dir)).sort().forEach((f) => h.update(f).update(fs.readFileSync(path.join(PUBLIC, dir, f))));
+  });
+  return h.digest('hex').slice(0, 10);
+}
+let BUILD = computeBuild();
+
 app.get('/health', (req, res) => {
-  res.status(dbReady ? 200 : 503).json({ ok: dbReady, database: dbReady ? 'ok' : dbProblem, problems });
+  res.status(dbReady ? 200 : 503).json({ ok: dbReady, version: BUILD, database: dbReady ? 'ok' : dbProblem, problems });
 });
 
 app.use((req, res, next) => {
@@ -69,10 +82,22 @@ app.use(express.static(PUBLIC, {
   }
 }));
 
-const page = (file) => (req, res) => res.sendFile(path.join(PUBLIC, file));
+// Pages HTML : les adresses des scripts et styles reçoivent ?v=<empreinte>, si bien qu'aucun cache
+// (navigateur ou CDN de l'hébergeur) ne peut servir une ancienne version après une mise à jour.
+const pages = {};
+function page(file, status) {
+  return (req, res) => {
+    if (!isProd) BUILD = computeBuild();
+    if (!pages[file] || !isProd) {
+      pages[file] = fs.readFileSync(path.join(PUBLIC, file), 'utf8')
+        .replace(/((?:src|href)="\/(?:js|css)\/[\w.-]+\.(?:js|css))"/g, `$1?v=${BUILD}"`);
+    }
+    res.status(status || 200).set('Cache-Control', 'no-cache').type('html').send(pages[file]);
+  };
+}
 app.get(['/m/:id', '/s/:token'], page('map.html'));
 app.get(['/', '/login', '/register', '/admin', '/account'], page('index.html'));
-app.use((req, res) => res.status(404).sendFile(path.join(PUBLIC, 'index.html')));
+app.use(page('index.html', 404));
 
 app.use((err, req, res, next) => {
   console.error(err);
