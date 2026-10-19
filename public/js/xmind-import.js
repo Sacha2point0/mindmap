@@ -27,16 +27,39 @@
       if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
     }
     if (eocd < 0) throw new Error('ce fichier n\'est pas un fichier XMind valide');
-    const count = dv.getUint16(eocd + 10, true);
+    let count = dv.getUint16(eocd + 10, true);
     let p = dv.getUint32(eocd + 16, true);
+    // Archives ZIP64 : le nombre d'entrées et la position du répertoire sont dans un enregistrement étendu.
+    if ((count === 0xffff || p === 0xffffffff) && eocd >= 20 && dv.getUint32(eocd - 20, true) === 0x07064b50) {
+      const z64 = Number(dv.getBigUint64(eocd - 12, true));
+      if (dv.getUint32(z64, true) === 0x06064b50) {
+        count = Number(dv.getBigUint64(z64 + 32, true));
+        p = Number(dv.getBigUint64(z64 + 48, true));
+      }
+    }
     const entries = new Map();
     const dec = new TextDecoder();
     for (let n = 0; n < count; n++) {
       if (dv.getUint32(p, true) !== 0x02014b50) break;
       const method = dv.getUint16(p + 10, true);
-      const compSize = dv.getUint32(p + 20, true);
+      let compSize = dv.getUint32(p + 20, true);
+      const size = dv.getUint32(p + 24, true);
       const nameLen = dv.getUint16(p + 28, true), extraLen = dv.getUint16(p + 30, true), commentLen = dv.getUint16(p + 32, true);
-      const localOffset = dv.getUint32(p + 42, true);
+      let localOffset = dv.getUint32(p + 42, true);
+      // ZIP64 : les valeurs 0xFFFFFFFF renvoient au champ complémentaire n°1 (tailles et position sur 8 octets).
+      if (size === 0xffffffff || compSize === 0xffffffff || localOffset === 0xffffffff) {
+        for (let q = p + 46 + nameLen, end = q + extraLen; q + 4 <= end;) {
+          const id = dv.getUint16(q, true), len = dv.getUint16(q + 2, true);
+          if (id === 1) {
+            let r = q + 4;
+            if (size === 0xffffffff) r += 8;
+            if (compSize === 0xffffffff) { compSize = Number(dv.getBigUint64(r, true)); r += 8; }
+            if (localOffset === 0xffffffff) localOffset = Number(dv.getBigUint64(r, true));
+            break;
+          }
+          q += 4 + len;
+        }
+      }
       const name = dec.decode(buf.subarray(p + 46, p + 46 + nameLen));
       entries.set(name, { method, compSize, localOffset });
       p += 46 + nameLen + extraLen + commentLen;
@@ -92,7 +115,35 @@
     };
   }
 
-  function fromXml(text) {
+  /** Couleur sombre et peu saturée : c'est le gris du thème XMind par défaut, on garde nos propres couleurs. */
+  function isNeutralDark(hex) {
+    let h = hex.replace('#', '');
+    if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+    const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.substr(i, 2), 16));
+    return Math.max(r, g, b) < 110 && Math.max(r, g, b) - Math.min(r, g, b) < 40;
+  }
+
+  /** styles.xml (XMind 8) : identifiant de style → propriétés, sans les réglages par défaut du thème. */
+  function parseXmlStyles(text) {
+    const map = {};
+    if (!text) return map;
+    const xml = new DOMParser().parseFromString(text, 'application/xml');
+    Array.from(xml.getElementsByTagName('style')).forEach((st) => {
+      const tp = Array.from(st.children).find((c) => c.localName === 'topic-properties');
+      if (!tp) return;
+      const props = {};
+      Array.from(tp.attributes).forEach((a) => { props[a.name] = a.value; });
+      if (/^#f{3}(f{3})?$/i.test(props['svg:fill'] || '')) delete props['svg:fill'];
+      if (isColor(props['fo:color']) && isNeutralDark(props['fo:color'])) delete props['fo:color'];
+      if (props['shape-class'] === 'org.xmind.topicShape.roundedRect') delete props['shape-class'];
+      if (/^14(pt)?$/.test(props['fo:font-size'] || '')) delete props['fo:font-size'];
+      map[st.getAttribute('id')] = props;
+    });
+    return map;
+  }
+
+  function fromXml(text, stylesText) {
+    const styles = parseXmlStyles(stylesText);
     const xml = new DOMParser().parseFromString(text, 'application/xml');
     if (xml.getElementsByTagName('parsererror').length) throw new Error('contenu XMind illisible');
     const kids = (el, name) => Array.from(el.children).filter((c) => c.localName === name);
@@ -111,7 +162,7 @@
         title: title ? title.textContent : '',
         href: attr(el, 'href'),
         image: img && attr(img, 'src') ? { src: attr(img, 'src'), w: parseFloat(attr(img, 'width')) || null } : null,
-        style: {},
+        style: styleFrom(styles[el.getAttribute('style-id')]),
         folded: el.getAttribute('branch') === 'folded',
         note: plain ? plain.textContent : null,
         children
@@ -137,7 +188,8 @@
     if (!sheets || !sheets.length) {
       const xml = await zip.read('content.xml');
       if (!xml) throw new Error('aucune carte trouvée dans ce fichier');
-      sheets = fromXml(dec.decode(xml));
+      const st = await zip.read('styles.xml');
+      sheets = fromXml(dec.decode(xml), st ? dec.decode(st) : null);
     }
     if (!sheets.length) throw new Error('aucune carte trouvée dans ce fichier');
     return { sheets, zip };
@@ -170,7 +222,8 @@
     }
 
     const ops = [];
-    async function visit(t, nodeId, parentId, order, depth) {
+    const countTopics = (t) => 1 + t.children.reduce((a, c) => a + countTopics(c), 0);
+    async function visit(t, nodeId, parentId, order, depth, side) {
       const fields = { text: t.title || '', style: t.style || {} };
       if (t.href && !/^xap:/.test(t.href) && M.safeLink(t.href)) fields.link = t.href;
       if (t.folded && depth > 0) fields.collapsed = true;
@@ -198,11 +251,17 @@
       if (nodeId === 'root') ops.push({ type: 'update', id: 'root', patch: fields });
       else {
         const node = Object.assign({ id: nodeId, parent: parentId, order }, fields);
-        if (depth === 1) node.side = order % 2 ? 'right' : 'left';
+        if (depth === 1) node.side = side;
         ops.push({ type: 'add', node });
       }
       if (++count % 50 === 0 && onProgress) onProgress(`Import : ${count} branches…`);
-      for (let i = 0; i < children.length; i++) await visit(children[i], M.uid(), nodeId, i + 1, depth + 1);
+      // Branches principales réparties à gauche et à droite pour équilibrer la carte.
+      const sides = [];
+      if (depth === 0) {
+        const load = { right: 0, left: 0 };
+        children.forEach((c) => { const sd = load.right <= load.left ? 'right' : 'left'; sides.push(sd); load[sd] += countTopics(c); });
+      }
+      for (let i = 0; i < children.length; i++) await visit(children[i], M.uid(), nodeId, i + 1, depth + 1, sides[i]);
     }
     await visit(sheet.root, 'root', null, 0, 0);
 
