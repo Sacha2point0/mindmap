@@ -59,7 +59,15 @@ app.use('/api', maps.router);
 app.use('/api', folders.router);
 app.use('/api', (req, res) => res.status(404).json({ error: 'Route inconnue' }));
 
-app.use(express.static(PUBLIC, { index: false, maxAge: process.env.NODE_ENV === 'production' ? '1h' : 0 }));
+// Scripts, styles et pages : le navigateur revérifie à chaque visite (réponse 304 légère si rien n'a changé),
+// pour qu'une mise à jour soit visible immédiatement. Polices, images et bibliothèques changent rarement.
+app.use(express.static(PUBLIC, {
+  index: false,
+  setHeaders: (res, filePath) => {
+    const rel = path.relative(PUBLIC, filePath);
+    res.set('Cache-Control', /^(fonts|img|vendor)[\\/]/.test(rel) ? 'public, max-age=604800' : 'no-cache');
+  }
+}));
 
 const page = (file) => (req, res) => res.sendFile(path.join(PUBLIC, file));
 app.get(['/m/:id', '/s/:token'], page('map.html'));
