@@ -72,6 +72,7 @@ Sauvegardez régulièrement la base MySQL (hPanel propose des sauvegardes) **et*
 | Déplacer la vue | glisser le fond, ou molette ou trackpad |
 
 - **Déplacer une branche** : glissez-la sur un autre nœud (au centre : devient enfant ; en haut ou en bas : se place avant ou après).
+- **Largeur d'une branche** : tirez la petite poignée au coin supérieur de la branche (ou le curseur *Largeur* du panneau) ; le texte passe à la ligne selon la largeur choisie. Double-clic sur la poignée ou bouton *Auto* : largeur automatique.
 - **Notes** : saisissez une note dans le panneau de droite (section *Note*). Une icône 📝 apparaît sur la branche, et un clic dessus affiche la note (les adresses web y sont cliquables). Les notes sont incluses dans les exports HTML et XMind.
 - **Images et documents** : glissez des fichiers depuis l'ordinateur sur un nœud, collez une image (`⌘V`) ou utilisez le panneau de droite.
 - **Coller une liste** : chaque ligne devient une sous-branche du nœud sélectionné.

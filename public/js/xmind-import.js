@@ -127,6 +127,7 @@
       image: t.image && t.image.src ? { src: t.image.src, w: t.image.width } : null,
       style: styleFrom(t.style && t.style.properties),
       folded: t.branch === 'folded',
+      width: Number(t.width) || null,
       note: note || null,
       children: kids.map(fromJsonTopic)
     };
@@ -245,6 +246,7 @@
       if (t.href && !/^xap:/.test(t.href) && M.safeLink(t.href)) fields.link = t.href;
       if (t.folded && depth > 0) fields.collapsed = true;
       if (t.note) fields.note = t.note;
+      if (t.width) fields.width = t.width;
       if (t.image && /^xap:/.test(t.image.src)) {
         const r = await upload(t.image.src);
         if (r && r.isImage) fields.image = { id: r.id, w: Math.round(Math.min(900, Math.max(60, t.image.w || 200))) };

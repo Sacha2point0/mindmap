@@ -10,7 +10,8 @@
 
   var MAX_TEXT = 5000;
   var STYLE_KEYS = ['color', 'bg', 'border', 'branch', 'bold', 'italic', 'underline', 'size', 'shape', 'align'];
-  var NODE_KEYS = ['text', 'side', 'collapsed', 'style', 'link', 'image', 'attachments', 'note'];
+  var NODE_KEYS = ['text', 'side', 'collapsed', 'style', 'link', 'image', 'attachments', 'note', 'width'];
+  var WIDTH_MIN = 60, WIDTH_MAX = 1200;
 
   function newDoc(title) {
     return {
@@ -70,6 +71,7 @@
       case 'link': var l = safeLink(v); if (l) n.link = l; else delete n.link; break;
       case 'image': var im = cleanImage(v); if (im) n.image = im; else delete n.image; break;
       case 'attachments': var at = cleanAttachments(v); if (at.length) n.attachments = at; else delete n.attachments; break;
+      case 'width': var w = Number(v); if (v != null && w) n.width = Math.round(Math.min(WIDTH_MAX, Math.max(WIDTH_MIN, w))); else delete n.width; break;
     }
   }
 
@@ -149,7 +151,7 @@
 
   var api = {
     newDoc: newDoc, uid: uid, applyOp: applyOp, children: children, subtreeIds: subtreeIds,
-    orderBetween: orderBetween, safeLink: safeLink, fileIds: fileIds, STYLE_KEYS: STYLE_KEYS
+    orderBetween: orderBetween, safeLink: safeLink, fileIds: fileIds, STYLE_KEYS: STYLE_KEYS, WIDTH_MIN: WIDTH_MIN, WIDTH_MAX: WIDTH_MAX
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.MindOps = api;

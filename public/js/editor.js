@@ -243,7 +243,12 @@
     e._col = el('button', { class: 'collapse', type: 'button', title: 'Replier / déplier' });
     e._col.addEventListener('click', (ev) => { ev.stopPropagation(); toggleCollapse(id); });
     e.append(e._text, e._meta, e._col);
-    e.addEventListener('dblclick', (ev) => { if (!ev.target.closest('a, button')) startEdit(id); });
+    if (canEdit()) {
+      const wh = el('span', { class: 'width-handle', title: 'Largeur de la branche (double-clic : automatique)' });
+      wh.addEventListener('dblclick', (ev) => { ev.stopPropagation(); commit([{ type: 'update', id, patch: { width: null } }]); });
+      e.append(wh);
+    }
+    e.addEventListener('dblclick', (ev) => { if (!ev.target.closest('a, button, .width-handle')) startEdit(id); });
     return e;
   }
 
@@ -254,7 +259,7 @@
   function updateNodeEl(e, n, inf) {
     const s = n.style || {};
     const editing = state.editing === n.id;
-    const sig = JSON.stringify([n.text, s, n.link, n.image, n.attachments, !!n.note, inf.depth, inf.branch, inf.side, inf.collapsed, inf.childCount, editing]);
+    const sig = JSON.stringify([n.text, s, n.link, n.image, n.attachments, !!n.note, n.width, inf.depth, inf.branch, inf.side, inf.collapsed, inf.childCount, editing]);
     if (e._sig === sig) return;
     e._sig = sig;
 
@@ -277,7 +282,9 @@
       const src = fileUrl(n.image.id);
       if (e._imgEl.getAttribute('src') !== src) e._imgEl.src = src;
       setImageWidth(e, n.image.w || 200);
-    } else if (e._img) { e._img.remove(); e._img = e._imgEl = null; e.style.maxWidth = ''; }
+    } else if (e._img) { e._img.remove(); e._img = e._imgEl = null; e._imgW = 0; }
+    e._fixedW = n.width || 0;
+    applyWidths(e);
 
     if (!editing) e._text.textContent = n.text || '';
 
@@ -301,10 +308,30 @@
 
   const IMG_MIN = 60, IMG_MAX = 900;
 
-  /** Largeur d'image affichée ; le nœud s'élargit pour la contenir. */
+  /**
+   * Largeur du nœud : fixée par l'utilisateur (le texte passe à la ligne) ou automatique
+   * (jusqu'à 340 px). Dans les deux cas, le nœud s'élargit pour contenir son image.
+   */
+  function applyWidths(e) {
+    const imgW = e._imgW || 0, fixed = e._fixedW || 0;
+    if (fixed) { e.style.width = Math.max(fixed, imgW ? imgW + 40 : 0) + 'px'; e.style.maxWidth = 'none'; }
+    else { e.style.width = ''; e.style.maxWidth = imgW ? Math.max(340, imgW + 40) + 'px' : ''; }
+  }
+
   function setImageWidth(e, w) {
     e._imgEl.style.width = w + 'px';
-    e.style.maxWidth = Math.max(340, w + 40) + 'px';
+    e._imgW = w;
+    applyWidths(e);
+  }
+
+  /** Aperçu en direct d'une largeur, sans l'enregistrer. */
+  function previewWidth(id, w) {
+    const nodeEl = els.get(id);
+    if (!nodeEl) return;
+    nodeEl._fixedW = w;
+    applyWidths(nodeEl);
+    layout(viewDoc(), state.info);
+    drawLinks(viewDoc(), state.info);
   }
 
   function render() {
@@ -748,6 +775,17 @@
       if (v) toast('Lien ajouté');
     };
 
+    const nodeEl = els.get(id);
+    const curW = n.width || (nodeEl ? nodeEl.offsetWidth : 160);
+    const widthLabel = el('span', { class: 'width-label', text: n.width ? n.width + ' px' : 'Auto' });
+    const widthRange = el('input', { type: 'range', min: M.WIDTH_MIN, max: 800, step: 10, value: Math.min(800, curW), 'aria-label': 'Largeur de la branche' });
+    widthRange.addEventListener('input', () => { widthLabel.textContent = widthRange.value + ' px'; previewWidth(id, Number(widthRange.value)); });
+    widthRange.addEventListener('change', () => { commit([{ type: 'update', id, patch: { width: Number(widthRange.value) } }]); widthRange.blur(); });
+    const widthRow = el('div', { class: 'row width-row' }, [
+      widthRange, widthLabel,
+      el('button', { class: 'btn sm' + (n.width ? '' : ' on-auto'), text: 'Auto', title: 'Largeur automatique selon le texte', onclick: () => commit([{ type: 'update', id, patch: { width: null } }]) })
+    ]);
+
     const noteField = el('textarea', { class: 'note-field', rows: 4, placeholder: 'Ajoutez une note : elle s\'affichera en cliquant sur l\'icône 📝 de la branche.', 'aria-label': 'Note' });
     noteField.value = n.note || '';
     noteField.addEventListener('change', () => {
@@ -795,6 +833,7 @@
 
       el('h3', { text: 'Forme' }),
       seg('shape', [['rounded', 'Arrondi'], ['rect', 'Carré'], ['pill', 'Pilule']].concat(isRoot ? [] : [['line', 'Souligné']]), s.shape || defaultShape(inf.depth)),
+      el('h3', { text: 'Largeur' }), widthRow,
       el('h3', { text: 'Fond' }), swatches('bg', s.bg),
       el('h3', { text: 'Bordure' }), swatches('border', s.border),
       isRoot ? null : el('h3', { text: 'Couleur de la branche' }),
@@ -881,6 +920,7 @@
       if (state.editing) finishEdit(true);
       select(id);
       if (!canEdit()) return;
+      if (e.target.closest('.width-handle')) return beginWidthResize(e, id);
       if (e.target.closest('.img-handle')) return beginImageResize(e, id);
       if (e.target.closest('.node-img')) return beginImageDrag(e, id);
       if (id !== viewDoc().rootId) beginDrag(e, id);
@@ -918,6 +958,24 @@
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', end);
     window.addEventListener('pointercancel', end);
+  }
+
+  function beginWidthResize(e, id) {
+    e.preventDefault();
+    const nodeEl = els.get(id);
+    const startW = nodeEl.offsetWidth, sx = e.clientX;
+    // Sur une branche à gauche, la poignée est à gauche : tirer vers la gauche élargit.
+    const dir = id !== viewDoc().rootId && state.info[id] && state.info[id].side === 'left' ? -1 : 1;
+    let w = startW;
+    nodeEl.classList.add('resizing');
+    track((ev) => {
+      w = Math.round(Math.min(M.WIDTH_MAX, Math.max(M.WIDTH_MIN, startW + dir * (ev.clientX - sx) / state.zoom)));
+      previewWidth(id, w);
+    }, (ev) => {
+      nodeEl.classList.remove('resizing');
+      if (ev.type === 'pointerup' && Math.abs(w - startW) > 1) commit([{ type: 'update', id, patch: { width: w } }]);
+      else { nodeEl._sig = null; changed(); }
+    });
   }
 
   function beginImageResize(e, id) {

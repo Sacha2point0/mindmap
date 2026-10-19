@@ -93,7 +93,7 @@
     inner.style.cssText = `position:absolute;left:0;top:0;transform:translate(${pad - minX}px,${pad - minY}px);`;
     inner.append(ctx.svg.cloneNode(true), ctx.nodesLayer.cloneNode(true));
     // Retire tout ce qui relève de l'interface : sélection, présence, poignées, boutons.
-    inner.querySelectorAll('.peer, .img-handle, .collapse:not(.closed)').forEach((n) => n.remove());
+    inner.querySelectorAll('.peer, .img-handle, .width-handle, .collapse:not(.closed)').forEach((n) => n.remove());
     inner.querySelectorAll('.node').forEach((n) => n.classList.remove('selected', 'peer-sel', 'dragging', 'editing', 'drop-child', 'drop-before', 'drop-after'));
     inner.querySelectorAll('.collapse.closed').forEach((n) => { n.style.opacity = '1'; });
     box.append(inner);
@@ -308,6 +308,7 @@ li{margin:8px 0}.t{font-weight:600;white-space:pre-wrap}li img{display:block;max
       if (n.link) t.href = n.link;
       if (n.collapsed) t.branch = 'folded';
       if (n.note) t.notes = { plain: { content: n.note } };
+      if (n.width) t.width = n.width;
       if (n.image) {
         try {
           const { path, blob } = await addFile('resources', n.image.id, '', '');
